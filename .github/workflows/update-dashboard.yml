@@ -1,6 +1,8 @@
 name: Actualizar Dashboard Pietra
 
 on:
+  push:
+    branches: ["main"]
   schedule:
     # Todos los días a las 08:00 AM hora Argentina (11:00 UTC)
     - cron: "0 11 * * *"
