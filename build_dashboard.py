@@ -548,7 +548,7 @@ function renderOrganic(s, e) {
   `).join('') : '<div class="card">No hay publicaciones en este rango.</div>';
 
   document.getElementById('ig-media-table').innerHTML = `
-    <thead><tr><th>Contenido</th><th>Fecha</th><th>Tipo</th><th class="num">Alcance</th><th class="num">Visualiz.</th><th class="num">Likes</th><th class="num">Guard.</th><th class="num">Comp.</th><th class="num">Interacc.</th></tr></thead>
+    <thead><tr><th>Contenido</th><th>Fecha</th><th>Tipo</th><th class="num">Alcance</th><th class="num">Visualiz.</th><th class="num">Likes</th><th class="num">Comentarios</th><th class="num">Guardados</th><th class="num">Comp.</th><th class="num">Interacc.</th></tr></thead>
     <tbody>${mediaList.map(m => `
       <tr>
         <td>
@@ -562,6 +562,7 @@ function renderOrganic(s, e) {
         <td class="num">${fmtNum(m.reach)}</td>
         <td class="num">${fmtNum(m.views)}</td>
         <td class="num">${fmtNum(m.likes)}</td>
+        <td class="num">${fmtNum(m.comments)}</td>
         <td class="num">${fmtNum(m.saved)}</td>
         <td class="num">${fmtNum(m.shares)}</td>
         <td class="num"><strong>${fmtNum(m.interactions)}</strong></td>
