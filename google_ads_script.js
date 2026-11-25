@@ -1,22 +1,17 @@
 const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1nRWkUGnENJzFJDowZQDinW1aMvCT7rbFYKKEJ_ud9fw/edit';
+const START_DATE = '2026-09-01'; // Fecha fija: nunca pierde histórico al avanzar los días
 
-function getDateRange(daysBack) {
+function getToday() {
   const tz = AdsApp.currentAccount().getTimeZone();
-  const end = new Date();
-  const start = new Date();
-  start.setDate(end.getDate() - daysBack);
-  return {
-    start: Utilities.formatDate(start, tz, 'yyyy-MM-dd'),
-    end: Utilities.formatDate(end, tz, 'yyyy-MM-dd')
-  };
+  return Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
 }
 
 function main() {
   const ss = SpreadsheetApp.openByUrl(SPREADSHEET_URL);
-  const range = getDateRange(65);
-  const dateFilter = `segments.date BETWEEN '${range.start}' AND '${range.end}'`;
+  const endDate = getToday();
+  const dateFilter = `segments.date BETWEEN '${START_DATE}' AND '${endDate}'`;
 
-  // 1. Campañas diarias (65 días para comparativas MoM)
+  // 1. Campañas diarias (histórico completo desde START_DATE)
   exportReport(ss, 'Campañas_Diario', `
     SELECT
       segments.date,
@@ -82,7 +77,7 @@ function main() {
       AND metrics.clicks > 0
   `);
 
-  Logger.log('Exportación completa: ' + range.start + ' a ' + range.end);
+  Logger.log('Exportación completa: ' + START_DATE + ' a ' + endDate);
 }
 
 function exportReport(ss, sheetName, query) {
