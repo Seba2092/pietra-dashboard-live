@@ -17,6 +17,7 @@ def main() -> None:
     py = sys.executable
     run_step([py, "fetch_meta_data.py", "--since", "2026-09-01"])
     run_step([py, "fetch_google_data.py"])
+    run_step([py, "fetch_profitability.py"])
     run_step([py, "build_dashboard.py"])
 
     dist_dir = BASE_DIR / "dist"

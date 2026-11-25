@@ -142,6 +142,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <a href="#meta">Meta Ads</a>
         <a href="#google">Google Ads</a>
         <a href="#organic">Orgánico (IG &amp; FB)</a>
+        <a href="#profitability">Rentabilidad Real</a>
       </div>
       <div style="font-size:12px;color:var(--muted)">Actualizado: <strong id="gen-at"></strong></div>
     </div>
@@ -285,6 +286,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="card-sub">Acumulado automáticamente cada 8h vía IG Graph API (desde 25/11/2026)</div>
         <div class="table-wrap"><table id="ig-stories-bottom-table"></table></div>
       </div>
+    </div>
+  </section>
+
+  <section id="profitability">
+    <div class="sec-head">
+      <div class="sec-title"><div class="sec-accent" style="background:var(--up)"></div><h2>Rentabilidad Real · Margen Neto &amp; ROAS Real (POAS)</h2></div>
+      <div class="sec-sub" id="prof-sub">Conectado en vivo a la planilla de costos y márgenes de Joyería Pietra</div>
+    </div>
+    <div class="kpi-grid-4" id="prof-kpis"></div>
+
+    <div class="card" style="margin-top:18px">
+      <div class="card-title">Rentabilidad Real por Producto Vendido (Meta Ads + Google Shopping) <span class="tag gold">Cruce automático con planilla</span></div>
+      <div class="card-sub">Descuenta el costo del producto/operación (margen antes de pauta) y la inversión publicitaria · POAS &gt; 1,00× = ganancia neta real</div>
+      <div class="table-wrap"><table id="prof-products-table"></table></div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <div class="card-title">Alertas de Stock Crítico en Best-Sellers (Tienda Nube) <span class="tag" style="background:var(--down-bg);color:var(--down)">Atención pauta</span></div>
+      <div class="card-sub">Productos con ritmo &ge; 3 unidades/mes y &le; 10 unidades disponibles en Tienda Nube</div>
+      <div class="table-wrap"><table id="prof-stock-table"></table></div>
     </div>
   </section>
 </main>
@@ -525,6 +546,132 @@ function renderAll() {
 
   // Organic dynamic by selected date range
   renderOrganic(s, e);
+
+  // Profitability & Real ROAS (POAS) dynamic by selected date range
+  renderProfitability(s, e, cs, ce, cmpOn, bC, bP, mAds, gProd);
+}
+
+function normStr(str) {
+  return (str || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9\\s]/g, ' ').replace(/\\s+/g, ' ').trim();
+}
+
+function matchProduct(rawName, profList) {
+  if (!profList || !profList.length) return null;
+  let q = normStr(rawName.replace(/\\(.*?\\)/g, ''));
+  // Aliases comunes de nombres de anuncios Meta
+  const aliases = {
+    'jul26 aros oval': 'aros nacar oval',
+    'ago26 dije oval': 'cadena nacar oval',
+    'jul26 aros ota': 'aros ota gold',
+    'ad imagen aros hook': 'aros hook',
+    'post aros amanda': 'aros amanda',
+    'corbatero knot': 'corbatero knot',
+    'carrusel corbatero knot': 'corbatero knot'
+  };
+  if (aliases[q]) q = aliases[q];
+  // 1. Coincidencia exacta
+  let hit = profList.find(p => p.norm === q);
+  if (hit) return hit;
+  // 2. Coincidencia por inclusión significativa (al menos 2 palabras o >= 8 chars)
+  hit = profList.find(p => p.norm.length >= 6 && (q.includes(p.norm) || p.norm.includes(q)));
+  return hit || null;
+}
+
+function renderProfitability(s, e, cs, ce, cmpOn, bC, bP, mAds, gProd) {
+  const PROF = P.profitability;
+  if (!PROF || !PROF.products || !PROF.products.length) {
+    document.getElementById('prof-kpis').innerHTML = '<div class="card">Planilla de rentabilidad aún no conectada.</div>';
+    return;
+  }
+  const avgM = PROF.avg_margin / 100;
+  document.getElementById('prof-sub').textContent = `Planilla viva: ${PROF.completed_count}/${PROF.total_catalog} productos cargados · Margen prom. ${fmtNum(PROF.avg_margin,1)}% · ROAS equilibrio prom. ${fmtNum(PROF.avg_be_roas,2)}×`;
+
+  // Cruzar TODOS los productos de Google (en rango) y TODOS los anuncios de Meta (en rango)
+  const allMAds = groupMeta(META.daily_ads, s, e);
+  const allGProd = groupGoogle(GOOG.daily_products, s, e);
+
+  const matchedRows = [];
+  let matchedRev = 0, matchedContrib = 0;
+
+  for (const a of allMAds) {
+    if (a.sp <= 0 && a.rv <= 0) continue;
+    const mp = matchProduct(a.k, PROF.products);
+    if (mp && a.rv > 0) {
+      const mPct = mp.margin / 100;
+      const contrib = a.rv * mPct;
+      const net = contrib - a.sp;
+      const poas = a.sp > 0 ? contrib / a.sp : 0;
+      matchedRev += a.rv; matchedContrib += contrib;
+      matchedRows.push({ name: mp.name, src: 'Meta Ads', raw: a.k, sp: a.sp, rv: a.rv, margin: mp.margin, roas: a.roas, poas, net, be: mp.be_roas, stock: mp.stock });
+    }
+  }
+  for (const gp of allGProd) {
+    if (gp.rv <= 0) continue;
+    const mp = matchProduct(gp.k, PROF.products);
+    if (mp) {
+      const mPct = mp.margin / 100;
+      const contrib = gp.rv * mPct;
+      const net = contrib - gp.sp;
+      const poas = gp.sp > 0 ? contrib / gp.sp : 0;
+      matchedRev += gp.rv; matchedContrib += contrib;
+      matchedRows.push({ name: mp.name, src: 'Google Ads', raw: gp.k, sp: gp.sp, rv: gp.rv, margin: mp.margin, roas: gp.roas, poas, net, be: mp.be_roas, stock: mp.stock });
+    }
+  }
+
+  // Cálculo general Blended: usa margen real en lo matcheado + margen promedio (44,1%) en el resto de la facturación
+  const unMatchedRev = Math.max(0, bC.rv - matchedRev);
+  const totalContrib = matchedContrib + (unMatchedRev * avgM);
+  const effMarginPct = bC.rv > 0 ? (totalContrib / bC.rv * 100) : PROF.avg_margin;
+  const netProfit = totalContrib - bC.sp;
+  const poasGeneral = bC.sp > 0 ? totalContrib / bC.sp : 0;
+  const netMarginSales = bC.rv > 0 ? (netProfit / bC.rv * 100) : 0;
+
+  // Comparativo período anterior (usando margen efectivo promedio)
+  const prevContrib = cmpOn && bP ? bP.rv * avgM : 0;
+  const prevNet = cmpOn && bP ? prevContrib - bP.sp : 0;
+  const prevPoas = cmpOn && bP && bP.sp > 0 ? prevContrib / bP.sp : 0;
+
+  document.getElementById('prof-kpis').innerHTML = [
+    { l:'Contribución Bruta (antes pauta)', v:fmtARS(totalContrib), f:`Margen efectivo: ${fmtNum(effMarginPct,1)}%`, b:cmpOn?deltaBadge(totalContrib,prevContrib):'' },
+    { l:'Ganancia Neta (después pauta)', v:fmtARS(netProfit), f:cmpOn?`Comp: ${fmtARS(prevNet)}`:`Inversión: ${fmtARS(bC.sp)}`, b:cmpOn?deltaBadge(netProfit,prevNet):'' },
+    { l:'ROAS Real General (POAS)', v:fmtNum(poasGeneral,2)+'×', f:`ROAS equilibrio: ${fmtNum(PROF.avg_be_roas,2)}×`, b:cmpOn?deltaBadge(poasGeneral,prevPoas):'' },
+    { l:'Margen Neto sobre Venta', v:fmtNum(netMarginSales,1)+'%', f:`Fact. cruzada exacta: ${fmtNum(bC.rv?matchedRev/bC.rv*100:0,1)}%`, b:'' }
+  ].map(k => `<div class="card kpi-card"><div class="kpi-label">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-foot"><span>${k.f}</span>${k.b}</div></div>`).join('');
+
+  matchedRows.sort((a,b) => b.net - a.net);
+  document.getElementById('prof-products-table').innerHTML = matchedRows.length ? `
+    <thead><tr><th>Producto (Planilla)</th><th>Canal</th><th class="num">Inversión</th><th class="num">Facturación</th><th class="num">Margen %</th><th class="num">ROAS Nom.</th><th class="num">ROAS Real (POAS)</th><th class="num">Ganancia Neta</th><th class="num">Stock TN</th></tr></thead>
+    <tbody>${matchedRows.slice(0, 20).map(r => {
+      const ok = r.poas >= 1;
+      const stTag = r.stock === null ? '—' : (r.stock <= 10 ? `<span class="delta down">${r.stock} u.</span>` : `${r.stock} u.`);
+      return `<tr>
+        <td><strong>${r.name}</strong><div style="font-size:11px;color:var(--muted)">${r.raw}</div></td>
+        <td><span class="tag ${r.src==='Meta Ads'?'meta':'gold'}">${r.src}</span></td>
+        <td class="num">${fmtARS(r.sp)}</td>
+        <td class="num">${fmtARS(r.rv)}</td>
+        <td class="num">${fmtNum(r.margin,1)}%</td>
+        <td class="num">${fmtNum(r.roas,2)}×</td>
+        <td class="num"><span class="delta ${ok?'up':'down'}">${fmtNum(r.poas,2)}×</span></td>
+        <td class="num"><strong style="color:${r.net>=0?'var(--up)':'var(--down)'}">${fmtARS(r.net)}</strong></td>
+        <td class="num">${stTag}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  ` : '<tbody><tr><td style="padding:14px;color:var(--muted)">Sin productos cruzados en este rango de fechas.</td></tr></tbody>';
+
+  const alerts = PROF.low_stock_alerts || [];
+  document.getElementById('prof-stock-table').innerHTML = alerts.length ? `
+    <thead><tr><th>Producto</th><th>Categoría</th><th class="num">Precio Web</th><th class="num">Margen %</th><th class="num">Ritmo (u/mes)</th><th class="num">Stock Tienda Nube</th></tr></thead>
+    <tbody>${alerts.map(a => `
+      <tr>
+        <td><strong>${a.name}</strong></td>
+        <td>${a.cat}</td>
+        <td class="num">${fmtARS(a.price)}</td>
+        <td class="num">${fmtNum(a.margin,1)}%</td>
+        <td class="num">${fmtNum(a.vel,1)} /mes</td>
+        <td class="num"><span class="delta down">${a.stock} unidades</span></td>
+      </tr>
+    `).join('')}</tbody>
+  ` : '<tbody><tr><td style="padding:14px;color:var(--muted)">Sin alertas de stock crítico.</td></tr></tbody>';
 }
 
 function renderOrganic(s, e) {
@@ -663,6 +810,9 @@ def main() -> None:
     google_path = DATA_DIR / "google_ads.json"
     if google_path.exists():
         payload["google_ads"] = json.loads(google_path.read_text(encoding="utf-8"))
+    prof_path = DATA_DIR / "profitability.json"
+    if prof_path.exists():
+        payload["profitability"] = json.loads(prof_path.read_text(encoding="utf-8"))
 
     html = HTML_TEMPLATE.replace("__PAYLOAD_JSON__", json.dumps(payload, ensure_ascii=False))
     out_html = BASE_DIR / "dashboard.html"
