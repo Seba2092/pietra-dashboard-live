@@ -22,6 +22,9 @@ def main() -> None:
     dist_dir = BASE_DIR / "dist"
     dist_dir.mkdir(exist_ok=True)
     shutil.copy2(BASE_DIR / "dashboard.html", dist_dir / "index.html")
+    assets_src = BASE_DIR / "assets"
+    if assets_src.exists():
+        shutil.copytree(assets_src, dist_dir / "assets", dirs_exist_ok=True)
     print(f"\nListo: {dist_dir / 'index.html'}")
 
 

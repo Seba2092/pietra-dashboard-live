@@ -12,6 +12,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Joyería Pietra · Dashboard Live Interactivo</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -117,9 +119,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="container">
     <div class="hero-top">
       <div class="brand">
-        <div class="brand-mark">P</div>
-        <div>
-          <h1>PIETRA <span style="color:var(--gold);font-weight:500">· LIVE API</span></h1>
+        <img src="assets/pietra-logo-white.png" alt="Joyería Pietra" style="height:46px;width:auto;display:block">
+        <div style="border-left:1px solid rgba(255,255,255,.18);padding-left:14px">
+          <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600">Dashboard Performance · Live API</div>
           <p id="hero-sub">Dashboard Interactivo · Selección de fechas y comparador</p>
         </div>
       </div>
@@ -287,7 +289,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </section>
 </main>
 
-<footer>Joyería Pietra · Dashboard Live Interactivo · Meta Marketing API + Google Ads Scripts → Google Sheets</footer>
+<footer>
+  <div>Joyería Pietra · Dashboard Live Interactivo · Meta Marketing API + Google Ads Scripts → Google Sheets</div>
+  <div style="margin-top:14px;display:flex;align-items:center;justify-content:center;gap:10px;opacity:.92">
+    <span style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Desarrollado por</span>
+    <img src="assets/freehub-logo-color.png" alt="Freehub" style="height:22px;width:auto;display:block">
+  </div>
+</footer>
 
 <script>
 const P = __PAYLOAD_JSON__;
