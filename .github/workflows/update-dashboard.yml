@@ -3,13 +3,15 @@ name: Actualizar Dashboard Pietra
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+      - "history/stories_history.json"
   schedule:
-    # Todos los días a las 08:00 AM hora Argentina (11:00 UTC)
-    - cron: "0 11 * * *"
+    # Cada 8 horas (00:00, 08:00 y 16:00 hora Argentina) para no perder ninguna Historia antes de las 24h
+    - cron: "0 3,11,19 * * *"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -35,6 +37,13 @@ jobs:
           META_API_VERSION: "v21.0"
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
         run: python update_all.py
+
+      - name: Persist Stories History
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add history/stories_history.json
+          git diff --cached --quiet || (git commit -m "Update IG stories archive [skip ci]" && git push)
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

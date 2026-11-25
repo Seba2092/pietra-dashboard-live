@@ -98,6 +98,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .tag.ig{background:rgba(225,48,108,.10);color:var(--instagram)}
   .ad-cell{display:flex;align-items:center;gap:9px}
   .thumb{width:38px;height:38px;border-radius:7px;object-fit:cover;border:1px solid var(--line);flex-shrink:0}
+  .top3-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
+  @media(max-width:860px){.top3-grid{grid-template-columns:1fr}}
+  .top3-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column}
+  .top3-img-wrap{position:relative;height:210px;background:#181613;overflow:hidden}
+  .top3-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+  .top3-rank{position:absolute;top:10px;left:10px;background:rgba(20,20,20,.85);color:var(--gold);font-weight:700;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--gold)}
+  .top3-body{padding:14px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
+  .top3-cap{font-size:12.5px;color:var(--ink);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .top3-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:auto;padding-top:8px;border-top:1px solid var(--line);font-size:11.5px;text-align:center}
+  .top3-stats strong{display:block;font-size:14px;color:var(--ink)}
+  .top3-link{text-decoration:none;color:var(--instagram);font-size:12px;font-weight:600}
   footer{margin-top:36px;padding:22px 20px 34px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;text-align:center}
 </style>
 </head>
@@ -244,13 +255,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <section id="organic">
     <div class="sec-head">
-      <div class="sec-title"><div class="sec-accent" style="background:var(--instagram)"></div><h2>Orgánico · Instagram &amp; Facebook (Últimos 30 días)</h2></div>
+      <div class="sec-title"><div class="sec-accent" style="background:var(--instagram)"></div><h2>Orgánico · Instagram &amp; Facebook</h2></div>
       <div class="sec-sub" id="org-sub"></div>
     </div>
     <div class="kpi-grid-4" id="org-kpis"></div>
+
+    <div style="margin-top:20px">
+      <div class="card-title">Top 3 Contenidos Orgánicos del Período (por Interacciones)</div>
+      <div class="card-sub">Likes + Comentarios + Guardados + Compartidos · Clic en la imagen para abrir en Instagram</div>
+      <div class="top3-grid" id="ig-top3"></div>
+    </div>
+
     <div class="card" style="margin-top:18px">
-      <div class="card-title">Publicaciones y Reels Recientes de Instagram</div>
+      <div class="card-title">Publicaciones y Reels de Instagram (Período Seleccionado)</div>
+      <div class="card-sub">Con miniaturas, alcance, visualizaciones e interacciones totales</div>
       <div class="table-wrap"><table id="ig-media-table"></table></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Historias de Instagram que más rindieron <span class="tag ig">Top 10</span></div>
+        <div class="card-sub">Ordenadas por visualizaciones orgánicas en el período</div>
+        <div class="table-wrap"><table id="ig-stories-top-table"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Historias de Instagram que menos rindieron <span class="tag ig">Menor alcance</span></div>
+        <div class="card-sub">Acumulado automáticamente cada 8h vía IG Graph API (desde 25/11/2026)</div>
+        <div class="table-wrap"><table id="ig-stories-bottom-table"></table></div>
+      </div>
     </div>
   </section>
 </main>
@@ -482,27 +514,99 @@ function renderAll() {
     <thead><tr><th>Producto</th><th class="num">Clics</th><th class="num">Conv.</th><th class="num">Valor Conv.</th></tr></thead>
     <tbody>${gProd.map(p => `<tr><td><strong>${p.k}</strong></td><td class="num">${fmtNum(p.cl)}</td><td class="num">${fmtNum(p.cv,2)}</td><td class="num"><strong>${fmtARS(p.rv)}</strong></td></tr>`).join('')}</tbody>
   `;
+
+  // Organic dynamic by selected date range
+  renderOrganic(s, e);
 }
 
-// Static Regions & Organic
+function renderOrganic(s, e) {
+  const allMedia = (P.organic.instagram.media || []);
+  const inRange = allMedia.filter(m => m.d >= s && m.d <= e);
+  const mediaList = inRange.length ? inRange : allMedia.slice(0, 12);
+
+  const top3 = mediaList.slice().sort((a,b) => (b.interactions - a.interactions) || (b.views - a.views)).slice(0, 3);
+  document.getElementById('ig-top3').innerHTML = top3.length ? top3.map((m, i) => `
+    <div class="top3-card">
+      <a class="top3-img-wrap" href="${m.permalink||'#'}" target="_blank" rel="noopener">
+        ${m.thumb ? `<img src="${m.thumb}" alt="">` : ''}
+        <span class="top3-rank">#${i+1} · ${m.type}</span>
+      </a>
+      <div class="top3-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--muted)">
+          <span>${m.d}</span>
+          <a class="top3-link" href="${m.permalink||'#'}" target="_blank" rel="noopener">Ver en IG ↗</a>
+        </div>
+        <div class="top3-cap">${m.caption || '(Sin texto)'}</div>
+        <div class="top3-stats">
+          <div><strong>${fmtNum(m.interactions)}</strong>Interacc.</div>
+          <div><strong>${fmtNum(m.views)}</strong>Visualiz.</div>
+          <div><strong>${fmtNum(m.reach)}</strong>Alcance</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);text-align:center">♥ ${m.likes} · 💬 ${m.comments} · 🔖 ${m.saved} · ↗ ${m.shares}</div>
+      </div>
+    </div>
+  `).join('') : '<div class="card">No hay publicaciones en este rango.</div>';
+
+  document.getElementById('ig-media-table').innerHTML = `
+    <thead><tr><th>Contenido</th><th>Fecha</th><th>Tipo</th><th class="num">Alcance</th><th class="num">Visualiz.</th><th class="num">Likes</th><th class="num">Guard.</th><th class="num">Comp.</th><th class="num">Interacc.</th></tr></thead>
+    <tbody>${mediaList.map(m => `
+      <tr>
+        <td>
+          <div class="ad-cell">
+            ${m.thumb ? `<a href="${m.permalink||'#'}" target="_blank" rel="noopener"><img class="thumb" src="${m.thumb}" alt=""></a>` : ''}
+            <span>${(m.caption||'(Sin texto)').slice(0,60)}${(m.caption||'').length>60?'...':''}</span>
+          </div>
+        </td>
+        <td style="white-space:nowrap">${m.d}</td>
+        <td><span class="tag ig">${m.type}</span></td>
+        <td class="num">${fmtNum(m.reach)}</td>
+        <td class="num">${fmtNum(m.views)}</td>
+        <td class="num">${fmtNum(m.likes)}</td>
+        <td class="num">${fmtNum(m.saved)}</td>
+        <td class="num">${fmtNum(m.shares)}</td>
+        <td class="num"><strong>${fmtNum(m.interactions)}</strong></td>
+      </tr>
+    `).join('')}</tbody>
+  `;
+
+  const allStories = (P.organic.instagram.stories || []);
+  const stRange = allStories.filter(x => x.d >= s && x.d <= e);
+  const stUse = stRange.length ? stRange : allStories;
+  const stTop = stUse.slice().sort((a,b) => (b.views - a.views) || (b.reach - a.reach)).slice(0, 10);
+  const stBot = stUse.filter(x => x.views > 0).sort((a,b) => (a.views - b.views) || (a.reach - b.reach)).slice(0, 10);
+
+  const renderStoryTable = list => list.length ? `
+    <thead><tr><th>Historia</th><th>Fecha</th><th class="num">Alcance</th><th class="num">Visualiz.</th><th class="num">Resp.</th><th class="num">Comp.</th></tr></thead>
+    <tbody>${list.map(x => `
+      <tr>
+        <td><div class="ad-cell">${x.thumb?`<img class="thumb" src="${x.thumb}" alt="">`:''}<span>${x.caption||'<em style="color:var(--muted)">Sin texto</em>'}</span></div></td>
+        <td style="white-space:nowrap">${x.ts||x.d}</td>
+        <td class="num">${fmtNum(x.reach)}</td>
+        <td class="num"><strong>${fmtNum(x.views)}</strong></td>
+        <td class="num">${fmtNum(x.replies)}</td>
+        <td class="num">${fmtNum(x.shares)}</td>
+      </tr>
+    `).join('')}</tbody>
+  ` : '<tbody><tr><td style="color:var(--muted);padding:14px">Todavía no hay historias registradas en este rango (el archivo automático acumula desde el 25/11/2026 cada 8h).</td></tr></tbody>';
+
+  document.getElementById('ig-stories-top-table').innerHTML = renderStoryTable(stTop);
+  document.getElementById('ig-stories-bottom-table').innerHTML = renderStoryTable(stBot);
+}
+
+// Static Regions & Organic summary
 document.getElementById('meta-region-table').innerHTML = `
   <thead><tr><th>Región</th><th class="num">Inversión</th><th class="num">Clics</th></tr></thead>
   <tbody>${(META.regions||[]).slice(0,10).map(r => `<tr><td><strong>${r.region}</strong></td><td class="num">${fmtARS(r.spend)}</td><td class="num">${fmtNum(r.clicks)}</td></tr>`).join('')}</tbody>
 `;
 
 const ig = P.organic.instagram, fb = P.organic.facebook, igIns = ig.insights_summary || {};
-document.getElementById('org-sub').textContent = `Ventana orgánica: ${P.organic.period.since}..${P.organic.period.until}`;
+document.getElementById('org-sub').textContent = `Resumen cuenta últimos 30d (${P.organic.period.since}..${P.organic.period.until}) · Contenidos e historias filtrados por tu selector`;
 document.getElementById('org-kpis').innerHTML = [
   { l:'IG Seguidores actuales', v:fmtNum(ig.profile.followers_count), s:'@'+ig.profile.username },
   { l:'IG Visualizaciones (30d)', v:fmtNum(igIns.views), s:`Alcance: ${fmtNum(igIns.reach)}` },
   { l:'IG Interacciones (30d)', v:fmtNum(igIns.total_interactions), s:`Cuentas: ${fmtNum(igIns.accounts_engaged)}` },
   { l:'FB Seguidores actuales', v:fmtNum(fb.page.followers_count), s:fb.page.name }
 ].map(k => `<div class="card kpi-card"><div class="kpi-label">${k.l}</div><div class="kpi-val">${k.v}</div><div class="kpi-foot"><span>${k.s}</span></div></div>`).join('');
-
-document.getElementById('ig-media-table').innerHTML = `
-  <thead><tr><th>Fecha</th><th>Tipo</th><th>Caption</th><th class="num">Likes</th><th class="num">Comentarios</th></tr></thead>
-  <tbody>${(ig.media||[]).slice(0,15).map(m => `<tr><td>${(m.timestamp||'').slice(0,10)}</td><td><span class="tag ig">${m.media_product_type||m.media_type}</span></td><td>${(m.caption||'').slice(0,75)}...</td><td class="num">${fmtNum(m.like_count)}</td><td class="num">${fmtNum(m.comments_count)}</td></tr>`).join('')}</tbody>
-`;
 
 // Presets
 function applyPreset(name) {

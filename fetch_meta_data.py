@@ -191,10 +191,102 @@ def fetch_instagram_organic(token: str, version: str, start: str, end: str) -> d
 
     media_list = graph_get_all(
         f"{IG_USER_ID}/media", token, version,
-        {"fields": "id,caption,media_type,media_product_type,timestamp,like_count,comments_count,permalink", "limit": 50},
+        {"fields": "id,caption,media_type,media_product_type,timestamp,like_count,comments_count,permalink,thumbnail_url,media_url", "limit": 50},
         max_pages=2,
     )
-    return {"profile": profile, "insights_summary": insights_summary, "media": media_list[:30]}
+    enriched_media = []
+    for m in media_list[:45]:
+        ts = (m.get("timestamp") or "")[:10]
+        if ts < "2026-09-01":
+            continue
+        thumb = m.get("thumbnail_url") or m.get("media_url") or ""
+        likes = int(m.get("like_count") or 0)
+        comments = int(m.get("comments_count") or 0)
+        reach = views = saved = shares = 0
+        total_int = likes + comments
+        try:
+            ins = graph_get(f"{m['id']}/insights", token, version, {"metric": "reach,views,saved,shares,total_interactions"})
+            vals = {x["name"]: int((x.get("values") or [{}])[0].get("value") or 0) for x in ins.get("data", [])}
+            reach = vals.get("reach", 0)
+            views = vals.get("views", 0)
+            saved = vals.get("saved", 0)
+            shares = vals.get("shares", 0)
+            total_int = vals.get("total_interactions", likes + comments + saved + shares)
+        except Exception:
+            pass
+        enriched_media.append({
+            "id": m["id"],
+            "d": ts,
+            "type": m.get("media_product_type") or m.get("media_type") or "FEED",
+            "caption": (m.get("caption") or "")[:140],
+            "permalink": m.get("permalink") or "",
+            "thumb": thumb,
+            "likes": likes,
+            "comments": comments,
+            "saved": saved,
+            "shares": shares,
+            "reach": reach,
+            "views": views,
+            "interactions": total_int,
+        })
+
+    # Historias activas (últimas 24h) acumuladas en history/stories_history.json para no perder histórico
+    hist_dir = BASE_DIR / "history"
+    hist_dir.mkdir(exist_ok=True)
+    hist_path = hist_dir / "stories_history.json"
+    stories_map: dict[str, dict] = {}
+    if hist_path.exists():
+        try:
+            for item in json.loads(hist_path.read_text(encoding="utf-8")):
+                if item.get("id"):
+                    stories_map[item["id"]] = item
+        except Exception:
+            pass
+
+    try:
+        active_stories = graph_get(
+            f"{IG_USER_ID}/stories", token, version,
+            {"fields": "id,caption,media_type,timestamp,thumbnail_url,media_url,permalink", "limit": 50},
+        ).get("data", [])
+        for st in active_stories:
+            sid = st["id"]
+            reach = views = replies = shares = 0
+            try:
+                ins = graph_get(f"{sid}/insights", token, version, {"metric": "reach,views,replies,shares"})
+                vals = {x["name"]: int((x.get("values") or [{}])[0].get("value") or 0) for x in ins.get("data", [])}
+                reach = vals.get("reach", 0)
+                views = vals.get("views", 0)
+                replies = vals.get("replies", 0)
+                shares = vals.get("shares", 0)
+            except Exception:
+                pass
+            prev_s = stories_map.get(sid) or {}
+            thumb = st.get("thumbnail_url") or st.get("media_url") or prev_s.get("thumb") or ""
+            stories_map[sid] = {
+                "id": sid,
+                "d": (st.get("timestamp") or "")[:10],
+                "ts": (st.get("timestamp") or "")[:16].replace("T", " "),
+                "type": st.get("media_type") or "STORY",
+                "caption": (st.get("caption") or prev_s.get("caption") or "")[:90],
+                "thumb": thumb,
+                "permalink": st.get("permalink") or prev_s.get("permalink") or "",
+                "reach": max(reach, int(prev_s.get("reach") or 0)),
+                "views": max(views, int(prev_s.get("views") or 0)),
+                "replies": max(replies, int(prev_s.get("replies") or 0)),
+                "shares": max(shares, int(prev_s.get("shares") or 0)),
+            }
+    except Exception:
+        pass
+
+    stories_list = sorted(stories_map.values(), key=lambda x: x.get("ts", ""), reverse=True)
+    hist_path.write_text(json.dumps(stories_list, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    return {
+        "profile": profile,
+        "insights_summary": insights_summary,
+        "media": enriched_media,
+        "stories": stories_list,
+    }
 
 
 def fetch_facebook_organic(token: str, version: str) -> dict:
